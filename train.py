@@ -140,20 +140,18 @@ if __name__ == "__main__":
         "log_num_replies": log_std,
     }  # map colname to target_margin
     TARGET_MARGIN = target_margin_map[TARGET_VAR]
-    logging.info(
-        f"`num_replies` std: {round(raw_std, 3)}; `log_num_replies` std: {round(log_std, 3)}"
-    )
+    logging.info(f"Target margin: {TARGET_VAR} std = {round(TARGET_MARGIN, 3)}")
 
     train_set, dev_set, test_set = get_input_examples(
         data,
-        target_margin=raw_std,
+        target_margin=TARGET_MARGIN,
         text_col="clean_text",
         target_col="num_replies",
     )
 
     # We create a special dataset "SentenceLabelDataset" to wrap out train_set
     # It will yield batches that contain at least two samples with the same label
-    train_data_sampler = SentenceLabelDataset(train_set, target_margin=raw_std)
+    train_data_sampler = SentenceLabelDataset(train_set, target_margin=TARGET_MARGIN)
     train_dataloader = DataLoader(
         train_data_sampler, batch_size=BATCH_SIZE, drop_last=True
     )
@@ -172,10 +170,10 @@ if __name__ == "__main__":
 
     LossDict = {
         "BatchHardTripletLoss": BatchHardTripletLoss(
-            model=model, target_margin=raw_std, wandb=wandb
+            model=model, target_margin=TARGET_MARGIN, wandb=wandb
         ),
         "BatchAllTripletLoss": BatchAllTripletLoss(
-            model=model, target_margin=raw_std, wandb=wandb
+            model=model, target_margin=TARGET_MARGIN, wandb=wandb
         ),
     }
     train_loss = LossDict[LOSS]
