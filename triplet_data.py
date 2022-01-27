@@ -68,10 +68,8 @@ class SentenceLabelDataset(IterableDataset):
         self.target_margin = target_margin
 
         # Group examples by label
-        label2ex = {}
+        label2ex = defaultdict(list)
         for example in examples:
-            if example.label not in label2ex:
-                label2ex[example.label] = []
             for tmp_example in examples:
                 if tmp_example.guid == example.guid:
                     continue

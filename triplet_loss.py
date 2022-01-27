@@ -65,7 +65,7 @@ class BatchHardTripletLoss(nn.Module):
     """
     BatchHardTripletLoss takes a batch with (label, sentence) pairs and computes the loss for all possible,
     valid triplets, i.e. anchor and positive must be within `target_margin` of each other, anchor and negative
-    must be further apart than `target_margin` of each other.
+    must be further apart than 2*`target_margin` of each other.
 
     Source: https://github.com/NegatioN/OnlineMiningTripletLoss/blob/master/online_triplet_loss/losses.py
     Paper: In Defense of the Triplet Loss for Person Re-Identification, https://arxiv.org/abs/1703.07737
@@ -152,6 +152,7 @@ class BatchHardTripletLoss(nn.Module):
         A triplet (i, j, k) is valid if:
             - i, j, k are distinct
             - |labels[i]-labels[j]| < target_margin and |labels[i] - labels[k]| > target_margin
+            - TODO: implement asymmetric
 
         Args:
             labels: tf.int32 `Tensor` with shape [batch_size]
@@ -195,7 +196,8 @@ class BatchHardTripletLoss(nn.Module):
 
     @staticmethod
     def get_anchor_negative_triplet_mask(labels, target_margin):
-        diff = (torch.abs(labels - labels.unsqueeze(1)) - target_margin) > 0
+        # Check if abs(labels[i] - labels[j]) >= 2*target_margin
+        diff = (torch.abs(labels - labels.unsqueeze(1)) - 2 * target_margin) >= 0
         valid_labels = diff.unsqueeze(0) & diff.unsqueeze(1)
         return ~valid_labels
 

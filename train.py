@@ -61,13 +61,16 @@ def get_input_examples(
 
     def triplets_from_labeled_dataset(input_examples, target_margin):
         triplets = []
-        label2sentence = defaultdict(list)
+        pos_dict = defaultdict(list)
+        neg_dict = defaultdict(list)
         for i in input_examples:
             for j in input_examples:
                 if j.guid == i.guid:
                     continue
                 if abs(int(j.label) - int(i.label)) <= target_margin:
-                    label2sentence[i.label].append(j)
+                    pos_dict[i.label].append(j)
+                if abs(int(j.label) - int(i.label)) >= 2 * target_margin:
+                    neg_dict[i.label].append(j)
 
         for anchor in input_examples:
             if (
@@ -77,11 +80,11 @@ def get_input_examples(
 
             positive = None
             while positive is None or positive.guid == anchor.guid:
-                positive = random.choice(label2sentence[anchor.label])
+                positive = random.choice(pos_dict[anchor.label])
 
             negative = None
-            while negative is None or negative.label == anchor.label:
-                negative = random.choice(input_examples)
+            while negative is None or negative.guid == anchor.guid:
+                negative = random.choice(neg_dict[anchor.label])
 
             triplets.append(
                 InputExample(
@@ -186,6 +189,7 @@ if __name__ == "__main__":
     logging.info("Performance before fine-tuning:")
     dev_evaluator(model)
 
+    logging.info(f"Train dataloader: {len(train_dataloader)}")
     warmup_steps = int(len(train_dataloader) * NUM_EPOCHS * 0.1)  # 10% of train data
 
     # Train the model
