@@ -1,3 +1,4 @@
+import argparse
 from collections import defaultdict
 import pandas as pd
 import numpy as np
@@ -74,7 +75,7 @@ def get_input_examples(
 
         for anchor in input_examples:
             if (
-                len(label2sentence[anchor.label]) < 2
+                len(pos_dict[anchor.label]) < 2
             ):  # we need at least 2 examples per label to create a triplet
                 continue
 
@@ -106,14 +107,24 @@ def get_input_examples(
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, required=True)
+    parser.add_argument("--target_var", type=str, nargs="?", default="num_replies")
+    parser.add_argument("--debug", dest="debug", action="store_true")
+    parser.add_argument("--no-debug", dest="debug", action="store_false")
+    parser.set_defaults(debug=False)
+
+    # Parse
+    args = parser.parse_args()
+
     # Params
     MODEL_NAME = "all-distilroberta-v1"
     BATCH_SIZE = 32
-    NUM_EPOCHS = 1
-    TARGET_VAR = "num_replies"  # either `num_replies` or `log_num_replies`
+    NUM_EPOCHS = args.epochs
+    TARGET_VAR = args.target_var  # either `num_replies` or `log_num_replies`
     LOSS = "BatchHardTripletLoss"
     TRAIN_FILE = "train/seq2reply_regression_data.pickle"
-    DEBUG = True
+    DEBUG = args.debug
 
     pdate = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     project_name = f"finetune-{LOSS}-ufo-{MODEL_NAME}-{pdate}"
@@ -189,8 +200,8 @@ if __name__ == "__main__":
     logging.info("Performance before fine-tuning:")
     dev_evaluator(model)
 
-    logging.info(f"Train dataloader: {len(train_dataloader)}")
     warmup_steps = int(len(train_dataloader) * NUM_EPOCHS * 0.1)  # 10% of train data
+    logging.info(f"Warmup steps/total: {warmup_steps}/{len(train_dataloader)}")
 
     # Train the model
     model.fit(
