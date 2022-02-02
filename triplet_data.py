@@ -3,6 +3,9 @@ import logging
 from collections import defaultdict
 from typing import Union, Tuple, List, Iterable, Dict
 from torch.utils.data import IterableDataset
+from tqdm import tqdm
+import itertools
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -68,14 +71,25 @@ class SentenceLabelDataset(IterableDataset):
         self.samples_per_label = samples_per_label
         self.target_margin = target_margin
 
+        start = time.time()
+
         # Group examples by label
         label2ex = defaultdict(list)
-        for example in examples:
-            for tmp_example in examples:
-                if tmp_example.guid == example.guid:
-                    continue
-                if abs(tmp_example.label - example.label) <= self.target_margin:
-                    label2ex[example.label].append(tmp_example)
+        lp = sum(1 for _ in itertools.permutations(examples, 2))
+        for i, j in tqdm(
+            itertools.permutations(examples, 2),
+            total=lp,
+            desc="SentenceLabelDataset [label2ex]",
+        ):
+            if abs(i.label - j.label) <= self.target_margin:
+                label2ex[i.label].append(j)
+
+        # for example in examples:
+        #     for tmp_example in examples:
+        #         if tmp_example.guid == example.guid:
+        #             continue
+        #         if abs(tmp_example.label - example.label) <= self.target_margin:
+        #             label2ex[example.label].append(tmp_example)
 
         # Include only labels with at least 2 examples
         self.grouped_inputs = []
@@ -93,6 +107,10 @@ class SentenceLabelDataset(IterableDataset):
         self.label_range = np.arange(num_labels)
         self.with_replacement = with_replacement
         np.random.shuffle(self.label_range)
+
+        logger.info(
+            f"Initialized SentenceLabelDataset: {round(time.time()-start,2)}s elapsed."
+        )
 
         logger.info(
             "SentenceLabelDataset: {} examples, from which {} examples could be used (those labels appeared at least {} times). {} different labels found.".format(

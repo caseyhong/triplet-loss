@@ -5,7 +5,6 @@ import numpy as np
 import random
 from sklearn.model_selection import train_test_split
 import time
-from tqdm import tqdm
 from datetime import datetime
 import logging
 import os
