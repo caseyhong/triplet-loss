@@ -42,6 +42,9 @@ def get_input_examples(
     X_train, X_val, y_train, y_val = train_test_split(
         X_train, y_train, test_size=val_prop, random_state=random_state
     )
+    logger.info(f"y_train mean: {y_train.mean()} std: {y_train.std()}")
+    logger.info(f"y_val mean: {y_val.mean()} std: {y_val.std()}")
+    logger.info(f"y_test mean: {y_test.mean()} std: {y_test.std()}")
     logger.info(f"Split train/val/test: {round(time.time()-start, 2)}s elapsed.")
 
     def get_examples(X, y):
