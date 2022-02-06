@@ -26,8 +26,8 @@ def get_input_examples(
     text_col="clean_text",
     target_col="num_replies",
     target_margin=1,
-    val_prop=0.2,
-    test_prop=0.2,
+    val_prop=0.25,
+    test_prop=0.25,
     random_state=42,
 ):
     logger.info("Loading dataset")
