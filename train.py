@@ -26,8 +26,8 @@ def get_input_examples(
     text_col="clean_text",
     target_col="num_replies",
     target_margin=1,
-    val_prop=0.25,
-    test_prop=0.25,
+    val_prop=0.2,
+    test_prop=0.2,
     random_state=42,
 ):
     logger.info("Loading dataset")
@@ -147,7 +147,8 @@ if __name__ == "__main__":
     data = data.loc[~(data.clean_text == "")]
     if DEBUG:
         data = data.sample(1000)
-    logging.info(f"Loaded {data.shape[0]} rows from {TRAIN_FILE}")
+    data = data.sample(frac=0.5)
+    logging.info(f"Loaded {data.shape[0]} (50%) rows from {TRAIN_FILE}")
     data["log_num_replies"] = np.log(data.num_replies + 1)
     raw_std = data.num_replies.std()
     log_std = data.log_num_replies.std()
