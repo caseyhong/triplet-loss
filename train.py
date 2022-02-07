@@ -13,6 +13,7 @@ from sentence_transformers import SentenceTransformer, LoggingHandler
 import torch
 from torch.utils.data import DataLoader
 import wandb
+import gc
 
 from triplet_data import *
 from triplet_evaluate import *
@@ -35,7 +36,7 @@ def get_input_examples(
     # split the data
     X_train, X_test, y_train, y_test = train_test_split(
         df[text_col],
-        df[target_col].astype(float),
+        df[target_col],
         test_size=test_prop,
         random_state=random_state,
     )
@@ -61,6 +62,14 @@ def get_input_examples(
     logger.info(
         f"Format train/val/test examples: {round(time.time()-start, 2)}s elapsed."
     )
+    # cleanup
+    del X_train
+    del X_val
+    del X_test
+    del y_train
+    del y_val
+    del y_test
+    gc.collect()
 
     def triplets_from_labeled_dataset(input_examples, target_margin):
         triplets = []
@@ -104,6 +113,9 @@ def get_input_examples(
     logger.info(
         f"Get triplets for dev/test set: {round(time.time()-start, 2)}s elapsed."
     )
+    del dev_set
+    del test_set
+    gc.collect()
 
     return train_set, dev_triplets, test_triplets
 
@@ -145,11 +157,12 @@ if __name__ == "__main__":
     data = pd.read_pickle(TRAIN_FILE)
     data = data.loc[data.clean_text.notnull()]
     data = data.loc[~(data.clean_text == "")]
+    data["num_replies"] = data["num_replies"].astype("int16")
     if DEBUG:
         data = data.sample(1000)
     data = data.sample(frac=0.5)
     logging.info(f"Loaded {data.shape[0]} (50%) rows from {TRAIN_FILE}")
-    data["log_num_replies"] = np.log(data.num_replies + 1)
+    data["log_num_replies"] = np.log(data.num_replies + 1).astype("float32")
     raw_std = data.num_replies.std()
     log_std = data.log_num_replies.std()
     target_margin_map = {
@@ -165,6 +178,8 @@ if __name__ == "__main__":
         text_col="clean_text",
         target_col="num_replies",
     )
+    del data
+    gc.collect()
 
     # We create a special dataset "SentenceLabelDataset" to wrap out train_set
     # It will yield batches that contain at least two samples with the same label
@@ -173,7 +188,7 @@ if __name__ == "__main__":
         train_data_sampler, batch_size=BATCH_SIZE, drop_last=True
     )
 
-    model = SentenceTransformer(MODEL_NAME)
+    model = SentenceTransformer(MODEL_NAME, device="cuda")
 
     ### Triplet losses ####################
     ### There are 4 triplet loss variants:
@@ -203,7 +218,7 @@ if __name__ == "__main__":
     logging.info("Performance before fine-tuning:")
     dev_evaluator(model)
 
-    warmup_steps = int(len(train_dataloader) * NUM_EPOCHS * 0.1)  # 10% of train data
+    warmup_steps = int(len(train_dataloader) * 0.1)  # 10% of train data
     logging.info(f"Warmup steps/total: {warmup_steps}/{len(train_dataloader)}")
 
     # Train the model
