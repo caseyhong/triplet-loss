@@ -202,7 +202,7 @@ if __name__ == "__main__":
     logging.info("Performance before fine-tuning:")
     dev_evaluator(model)
 
-    warmup_steps = int(len(train_dataloader) * 0.1)  # 10% of train data
+    warmup_steps = int(len(train_dataloader) * NUM_EPOCHS * 0.1)  # 10% of train data
     logging.info(f"Warmup steps/total: {warmup_steps}/{len(train_dataloader)}")
 
     # Train the model
