@@ -142,7 +142,7 @@ if __name__ == "__main__":
 
     pdate = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     project_name = f"finetune-{LOSS}-ufo-{MODEL_NAME}-{pdate}"
-    output_path = osp.join("output", project_name)
+    output_path = osp.join("/output", project_name)
     os.makedirs(output_path, exist_ok=True)
 
     # setup logging to stdout
