@@ -149,7 +149,7 @@ def get_input_examples(
 
 
 def target2class(targets, log_norm=False):
-    log.info("Transforming data targets to class labels")
+    logger.info("Transforming data targets to class labels")
     if log_norm:
         targets = np.log(targets + 1)
     return targets.apply(lambda x: abs(x - targets.mean()) <= targets.std()).astype(
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     data = data.loc[data.clean_text.notnull()]
     data = data.loc[~(data.clean_text == "")]
     data["label"] = target2class(data["num_replies"])
-    log.info(
+    logging.info(
         f"Label split: {data.loc[data.label==0].shape[0]}-{data.loc[data.label==1].shape[0]}"
     )
     # data["num_replies"] = data["num_replies"].astype("int16")
