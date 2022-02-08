@@ -87,7 +87,7 @@ def get_input_examples(
 def target2class(targets, log_norm=False):
     """
     Take targets (pd.Series) and transform into binary classification labels.
-    Label is 0 if the target is within 1 std of the mean, 1 otherwise
+    Label is 1 if the target is within 1 std of the mean, 0 otherwise
     """
     logger.info("Transforming data targets to class labels")
     if log_norm:
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         data = data.sample(1000)
     data["label"] = target2class(data["num_replies"])
     logging.info(
-        f"Loaded {data.shape[0]} rows from file. {data.loc[data.label==0].shape[0]} with label 0. {data.loc[data.label==1].shape[0]} with label 1."
+        f"Loaded {data.shape[0]} rows from file. {data.loc[data.label==0].shape[0]} with label 0 (high engagement). {data.loc[data.label==1].shape[0]} with label 1 (low/avg engagement)."
     )
 
     train_set, dev_set, test_set = get_input_examples(
