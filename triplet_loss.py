@@ -75,14 +75,14 @@ class BatchHardTripletLoss(nn.Module):
     def __init__(
         self,
         model: SentenceTransformer,
-        target_margin: float,
+        # target_margin: float,
         wandb,
         distance_metric=BatchHardTripletLossDistanceFunction.euclidian_distance,
         margin: float = 5,
     ):
         super(BatchHardTripletLoss, self).__init__()
         self.sentence_embedder = model
-        self.target_margin = target_margin
+        # self.target_margin = target_margin
         self.triplet_margin = margin
         self.distance_metric = distance_metric
         self.wandb = wandb
@@ -114,8 +114,11 @@ class BatchHardTripletLoss(nn.Module):
 
         # For each anchor, get the hardest positive
         # First, we need to get a mask for every valid positive
+        # mask_anchor_positive = BatchHardTripletLoss.get_anchor_positive_triplet_mask(
+        #     labels, self.target_margin
+        # ).float()
         mask_anchor_positive = BatchHardTripletLoss.get_anchor_positive_triplet_mask(
-            labels, self.target_margin
+            labels
         ).float()
 
         # We put to 0 any element where (a, p) is not valid
@@ -126,8 +129,11 @@ class BatchHardTripletLoss(nn.Module):
 
         # For each anchor, get the hardest negative
         # First, we need to get a mask for every valid negative
+        # mask_anchor_negative = BatchHardTripletLoss.get_anchor_negative_triplet_mask(
+        #     labels, self.target_margin
+        # ).float()
         mask_anchor_negative = BatchHardTripletLoss.get_anchor_negative_triplet_mask(
-            labels, self.target_margin
+            labels
         ).float()
 
         # We add the maximum value in each row to the invalid negatives (label(a) == label(n))
@@ -146,60 +152,66 @@ class BatchHardTripletLoss(nn.Module):
 
         return triplet_loss
 
-    @staticmethod
-    def get_triplet_mask(labels, target_margin):
-        """Return a 3D mask where mask[a, p, n] is True iff the triplet (a, p, n) is valid.
-        A triplet (i, j, k) is valid if:
-            - i, j, k are distinct
-            - |labels[i]-labels[j]| < target_margin and |labels[i] - labels[k]| > target_margin
-            - TODO: implement asymmetric
+    # @staticmethod
+    # def get_anchor_positive_triplet_mask(labels, target_margin):
+    #     """
+    #     Return a 2D mask where mask[a,p] is True iff a and p are distinct and are within `target_margin`
+    #     of each other
+    #     Args:
+    #         labels: tf.int32 `Tensor` with shape [batch_size]
+    #         target_margin: target margin
+    #     Returns:
+    #         mask: tf.bool `Tensor` with shape [batch_size, batch_size]
+    #     """
+    #     indices_equal = torch.eye(labels.size(0), device=labels.device).bool()
+    #     indices_not_equal = ~indices_equal
 
-        Args:
-            labels: tf.int32 `Tensor` with shape [batch_size]
-            target_margin: target margin
-        """
-        # Check that i, j, and k are distinct
-        indices_equal = torch.eye(labels.size(0), device=labels.device).bool()
-        indices_not_equal = ~indices_equal
-        i_not_equal_j = indices_not_equal.unsqueeze(2)
-        i_not_equal_k = indices_not_equal.unsqueeze(1)
-        j_not_equal_k = indices_not_equal.unsqueeze(0)
+    #     # Check if abs(labels[i] - labels[j]) <= target_margin
+    #     # Uses broadcasting where the 1st argument has shape (1, batch_size) and the 2nd (batch_size, 1)
+    #     diff = (torch.abs(labels - labels.unsqueeze(1)) - target_margin) <= 0
+    #     valid_labels = diff.unsqueeze(0) & diff.unsqueeze(1)
 
-        distinct_indices = (i_not_equal_j & i_not_equal_k) & j_not_equal_k
-
-        # Now mask according to labels
-        diff = (torch.abs(labels - labels.unsqueeze(1)) - target_margin) <= 0
-        valid_labels = (diff.unsqueeze(2) & diff.unsqueeze(1)) & diff.unsqueeze(0)
-
-        return distinct_indices & valid_labels
+    #     return indices_not_equal & valid_labels
 
     @staticmethod
-    def get_anchor_positive_triplet_mask(labels, target_margin):
+    def get_anchor_positive_triplet_mask(labels):
         """
-        Return a 2D mask where mask[a,p] is True iff a and p are distinct and are within `target_margin`
+        Return a 2D mask where mask[a,p] is True iff a and p are distinct and have the same label.`
         of each other
         Args:
             labels: tf.int32 `Tensor` with shape [batch_size]
-            target_margin: target margin
         Returns:
             mask: tf.bool `Tensor` with shape [batch_size, batch_size]
         """
+        # Check that i and j are distinct
         indices_equal = torch.eye(labels.size(0), device=labels.device).bool()
         indices_not_equal = ~indices_equal
 
-        # Check if abs(labels[i] - labels[j]) <= target_margin
+        # Check if labels[i] == labels[j]
         # Uses broadcasting where the 1st argument has shape (1, batch_size) and the 2nd (batch_size, 1)
-        diff = (torch.abs(labels - labels.unsqueeze(1)) - target_margin) <= 0
-        valid_labels = diff.unsqueeze(0) & diff.unsqueeze(1)
+        labels_equal = labels.unsqueeze(0) == labels.unsqueeze(1)
 
-        return indices_not_equal & valid_labels
+        return labels_equal & indices_not_equal
+
+    # @staticmethod
+    # def get_anchor_negative_triplet_mask(labels, target_margin):
+    #     # Check if abs(labels[i] - labels[j]) >= 2*target_margin
+    #     diff = (torch.abs(labels - labels.unsqueeze(1)) - 2 * target_margin) >= 0
+    #     valid_labels = diff.unsqueeze(0) & diff.unsqueeze(1)
+    #     return ~valid_labels
 
     @staticmethod
-    def get_anchor_negative_triplet_mask(labels, target_margin):
-        # Check if abs(labels[i] - labels[j]) >= 2*target_margin
-        diff = (torch.abs(labels - labels.unsqueeze(1)) - 2 * target_margin) >= 0
-        valid_labels = diff.unsqueeze(0) & diff.unsqueeze(1)
-        return ~valid_labels
+    def get_anchor_negative_triplet_mask(labels):
+        """Return a 2D mask where mask[a, n] is True iff a and n have distinct labels.
+        Args:
+            labels: tf.int32 `Tensor` with shape [batch_size]
+        Returns:
+            mask: tf.bool `Tensor` with shape [batch_size, batch_size]
+        """
+        # Check if labels[i] != labels[k]
+        # Uses broadcasting where the 1st argument has shape (1, batch_size) and the 2nd (batch_size, 1)
+
+        return ~(labels.unsqueeze(0) == labels.unsqueeze(1))
 
 
 class BatchAllTripletLoss(nn.Module):
@@ -233,6 +245,33 @@ class BatchAllTripletLoss(nn.Module):
         triplet_loss = self.batch_all_triplet_loss(labels, rep)
         self.wandb.log({"triplet_loss": triplet_loss})
         return triplet_loss
+
+    @staticmethod
+    def get_triplet_mask(labels, target_margin):
+        """Return a 3D mask where mask[a, p, n] is True iff the triplet (a, p, n) is valid.
+        A triplet (i, j, k) is valid if:
+            - i, j, k are distinct
+            - |labels[i]-labels[j]| < target_margin and |labels[i] - labels[k]| > target_margin
+            - TODO: implement asymmetric
+
+        Args:
+            labels: tf.int32 `Tensor` with shape [batch_size]
+            target_margin: target margin
+        """
+        # Check that i, j, and k are distinct
+        indices_equal = torch.eye(labels.size(0), device=labels.device).bool()
+        indices_not_equal = ~indices_equal
+        i_not_equal_j = indices_not_equal.unsqueeze(2)
+        i_not_equal_k = indices_not_equal.unsqueeze(1)
+        j_not_equal_k = indices_not_equal.unsqueeze(0)
+
+        distinct_indices = (i_not_equal_j & i_not_equal_k) & j_not_equal_k
+
+        # Now mask according to labels
+        diff = (torch.abs(labels - labels.unsqueeze(1)) - target_margin) <= 0
+        valid_labels = (diff.unsqueeze(2) & diff.unsqueeze(1)) & diff.unsqueeze(0)
+
+        return distinct_indices & valid_labels
 
     def batch_all_triplet_loss(self, labels, embeddings):
         """Build the triplet loss over a batch of embeddings.

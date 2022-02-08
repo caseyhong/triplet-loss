@@ -26,7 +26,7 @@ def get_input_examples(
     df,
     text_col="clean_text",
     target_col="num_replies",
-    target_margin=1,
+    # target_margin=1,
     val_prop=0.2,
     test_prop=0.2,
     random_state=42,
@@ -43,10 +43,10 @@ def get_input_examples(
     X_train, X_val, y_train, y_val = train_test_split(
         X_train, y_train, test_size=val_prop, random_state=random_state
     )
-    logger.info(f"y_train mean: {y_train.mean()} std: {y_train.std()}")
-    logger.info(f"y_val mean: {y_val.mean()} std: {y_val.std()}")
-    logger.info(f"y_test mean: {y_test.mean()} std: {y_test.std()}")
-    logger.info(f"Split train/val/test: {round(time.time()-start, 2)}s elapsed.")
+    # logger.info(f"y_train mean: {y_train.mean()} std: {y_train.std()}")
+    # logger.info(f"y_val mean: {y_val.mean()} std: {y_val.std()}")
+    # logger.info(f"y_test mean: {y_test.mean()} std: {y_test.std()}")
+    # logger.info(f"Split train/val/test: {round(time.time()-start, 2)}s elapsed.")
 
     def get_examples(X, y):
         """Take X (pd.Series) and y (pd.Series) and return a list of InputExamples"""
@@ -71,32 +71,24 @@ def get_input_examples(
     del y_test
     gc.collect()
 
-    def triplets_from_labeled_dataset(input_examples, target_margin):
+    def triplets_from_labeled_dataset(input_examples):
         triplets = []
-        pos_dict = defaultdict(list)
-        neg_dict = defaultdict(list)
-        for i in input_examples:
-            for j in input_examples:
-                if j.guid == i.guid:
-                    continue
-                if abs(int(j.label) - int(i.label)) <= target_margin:
-                    pos_dict[i.label].append(j)
-                if abs(int(j.label) - int(i.label)) >= 2 * target_margin:
-                    neg_dict[i.label].append(j)
-
-        for anchor in input_examples:
+        label2sentence = defaultdict(list)
+        for ie in input_examples:
+            label2sentence[ie.label].append(ie)
+        for ie in input_examples:
+            anchor = ie
             if (
-                len(pos_dict[anchor.label]) < 2
-            ):  # we need at least 2 examples per label to create a triplet
+                len(label2sentence[ie.label]) < 2
+            ):  # We need at least 2 examples per label to create a triplet
                 continue
-
             positive = None
             while positive is None or positive.guid == anchor.guid:
-                positive = random.choice(pos_dict[anchor.label])
+                positive = random.choice(label2sentence[ie.label])
 
             negative = None
-            while negative is None or negative.guid == anchor.guid:
-                negative = random.choice(neg_dict[anchor.label])
+            while negative is None or negative.label == anchor.label:
+                negative = random.choice(input_examples)
 
             triplets.append(
                 InputExample(
@@ -105,11 +97,47 @@ def get_input_examples(
             )
         return triplets
 
+    # def triplets_from_labeled_dataset(input_examples, target_margin):
+    #     triplets = []
+    #     pos_dict = defaultdict(list)
+    #     neg_dict = defaultdict(list)
+    #     for i in input_examples:
+    #         for j in input_examples:
+    #             if j.guid == i.guid:
+    #                 continue
+    #             if abs(int(j.label) - int(i.label)) <= target_margin:
+    #                 pos_dict[i.label].append(j)
+    #             if abs(int(j.label) - int(i.label)) >= 2 * target_margin:
+    #                 neg_dict[i.label].append(j)
+
+    #     for anchor in input_examples:
+    #         if (
+    #             len(pos_dict[anchor.label]) < 2
+    #         ):  # we need at least 2 examples per label to create a triplet
+    #             continue
+
+    #         positive = None
+    #         while positive is None or positive.guid == anchor.guid:
+    #             positive = random.choice(pos_dict[anchor.label])
+
+    #         negative = None
+    #         while negative is None or negative.guid == anchor.guid:
+    #             negative = random.choice(neg_dict[anchor.label])
+
+    #         triplets.append(
+    #             InputExample(
+    #                 texts=[anchor.texts[0], positive.texts[0], negative.texts[0]]
+    #             )
+    #         )
+    #     return triplets
+
     start = time.time()
     # For dev & test set, we return triplets (anchor, positive, negative)
-    random.seed(42)  # Fix seed, so that we always get the same triplets
-    dev_triplets = triplets_from_labeled_dataset(dev_set, target_margin)
-    test_triplets = triplets_from_labeled_dataset(test_set, target_margin)
+    random.seed(random_state)  # Fix seed, so that we always get the same triplets
+    # dev_triplets = triplets_from_labeled_dataset(dev_set, target_margin)
+    # test_triplets = triplets_from_labeled_dataset(test_set, target_margin)
+    dev_triplets = triplets_from_labeled_dataset(dev_set)
+    test_triplets = triplets_from_labeled_dataset(test_set)
     logger.info(
         f"Get triplets for dev/test set: {round(time.time()-start, 2)}s elapsed."
     )
@@ -118,6 +146,15 @@ def get_input_examples(
     gc.collect()
 
     return train_set, dev_triplets, test_triplets
+
+
+def target2class(targets, log_norm=False):
+    log.info("Transforming data targets to class labels")
+    if log_norm:
+        targets = np.log(targets + 1)
+    return targets.apply(lambda x: abs(x - targets.mean()) <= targets.std()).astype(
+        "int16"
+    )
 
 
 if __name__ == "__main__":
@@ -157,33 +194,42 @@ if __name__ == "__main__":
     data = pd.read_pickle(TRAIN_FILE)
     data = data.loc[data.clean_text.notnull()]
     data = data.loc[~(data.clean_text == "")]
-    data["num_replies"] = data["num_replies"].astype("int16")
-    if DEBUG:
-        data = data.sample(1000)
-    data = data.sample(frac=0.5)
-    logging.info(f"Loaded {data.shape[0]} (50%) rows from {TRAIN_FILE}")
-    data["log_num_replies"] = np.log(data.num_replies + 1).astype("float32")
-    raw_std = data.num_replies.std()
-    log_std = data.log_num_replies.std()
-    target_margin_map = {
-        "num_replies": raw_std,
-        "log_num_replies": log_std,
-    }  # map colname to target_margin
-    TARGET_MARGIN = target_margin_map[TARGET_VAR]
-    logging.info(f"Target margin: {TARGET_VAR} std = {round(TARGET_MARGIN, 3)}")
+    data["label"] = target2class(data["num_replies"])
+    log.info(
+        f"Label split: {data.loc[data.label==0].shape[0]}-{data.loc[data.label==1].shape[0]}"
+    )
+    # data["num_replies"] = data["num_replies"].astype("int16")
+    # if DEBUG:
+    #     data = data.sample(1000)
+    # data = data.sample(frac=0.5)
+    # logging.info(f"Loaded {data.shape[0]} (50%) rows from {TRAIN_FILE}")
+    # data["log_num_replies"] = np.log(data.num_replies + 1).astype("float32")
+    # raw_std = data.num_replies.std()
+    # log_std = data.log_num_replies.std()
+    # target_margin_map = {
+    #     "num_replies": raw_std,
+    #     "log_num_replies": log_std,
+    # }  # map colname to target_margin
+    # TARGET_MARGIN = target_margin_map[TARGET_VAR]
+    # logging.info(f"Target margin: {TARGET_VAR} std = {round(TARGET_MARGIN, 3)}")
 
+    # train_set, dev_set, test_set = get_input_examples(
+    #     data,
+    #     target_margin=TARGET_MARGIN,
+    #     text_col="clean_text",
+    #     target_col="num_replies",
+    # )
     train_set, dev_set, test_set = get_input_examples(
-        data,
-        target_margin=TARGET_MARGIN,
-        text_col="clean_text",
-        target_col="num_replies",
+        data, text_col="clean_text", target_col="label"
     )
     del data
     gc.collect()
 
     # We create a special dataset "SentenceLabelDataset" to wrap out train_set
     # It will yield batches that contain at least two samples with the same label
-    train_data_sampler = SentenceLabelDataset(train_set, target_margin=TARGET_MARGIN)
+    # train_data_sampler = SentenceLabelDataset(train_set, target_margin=TARGET_MARGIN)
+    train_data_sampler = SentenceLabelDataset(train_set)
+
     train_dataloader = DataLoader(
         train_data_sampler, batch_size=BATCH_SIZE, drop_last=True
     )
@@ -200,15 +246,16 @@ if __name__ == "__main__":
     wandb.init(project=project_name, entity="jisoo")
     wandb.watch(model)
 
-    LossDict = {
-        "BatchHardTripletLoss": BatchHardTripletLoss(
-            model=model, target_margin=TARGET_MARGIN, wandb=wandb
-        ),
-        "BatchAllTripletLoss": BatchAllTripletLoss(
-            model=model, target_margin=TARGET_MARGIN, wandb=wandb
-        ),
-    }
-    train_loss = LossDict[LOSS]
+    # LossDict = {
+    #     "BatchHardTripletLoss": BatchHardTripletLoss(
+    #         model=model, target_margin=TARGET_MARGIN, wandb=wandb
+    #     ),
+    #     "BatchAllTripletLoss": BatchAllTripletLoss(
+    #         model=model, target_margin=TARGET_MARGIN, wandb=wandb
+    #     ),
+    # }
+    # train_loss = LossDict[LOSS]
+    train_loss = BatchHardTripletLoss(model=model, wandb=wandb)
 
     logging.info("Read val dataset")
     dev_evaluator = TripletEvaluator.from_input_examples(
