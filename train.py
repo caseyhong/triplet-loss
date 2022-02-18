@@ -150,11 +150,6 @@ if __name__ == "__main__":
     TRAIN_FILE = "train/seq2reply_regression_data.pickle"
     DEBUG = args.debug
 
-    pdate = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    project_name = f"finetune-{LOSS}-ufo-{MODEL_NAME}-{pdate}"
-    output_path = osp.join("/output", project_name)
-    os.makedirs(output_path, exist_ok=True)
-
     # setup logging to stdout
     logging.basicConfig(
         format="%(asctime)s - %(message)s",
@@ -163,21 +158,29 @@ if __name__ == "__main__":
         handlers=[LoggingHandler()],
     )
 
-    # load data
+    # load data and set up project name for savepath and wandb
     data = pd.read_pickle(TRAIN_FILE)
     data = data.loc[data.clean_text.notnull()]
     data = data.loc[~(data.clean_text == "")]
+
+    pdate = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
     if DEBUG:db
         data = data.sample(1000)
     if TARGET_VAR == "minmax":
         data["label"] = target2class(data["num_replies"], minmax_norm=True)
+        project_name = f"finetune-{LOSS}-minmax_ufo-{MODEL_NAME}-{pdate}"
     if TARGET_VAR == "log":
         data["label"] = target2class(data["num_replies"], log_norm=True)
+        project_name = f"finetune-{LOSS}-log_ufo-{MODEL_NAME}-{pdate}"
     else:
         data["label"] = target2class(data["num_replies"])
+        project_name = f"finetune-{LOSS}-ufo-{MODEL_NAME}-{pdate}"
     logging.info(
         f"Loaded {data.shape[0]} rows from file. {data.loc[data.label==0].shape[0]} with label 0 (high engagement). {data.loc[data.label==1].shape[0]} with label 1 (low/avg engagement)."
     )
+    output_path = osp.join("/output", project_name)
+    os.makedirs(output_path, exist_ok=True)
 
     train_set, dev_set, test_set = get_input_examples(
         data, text_col="clean_text", target_col="label"
