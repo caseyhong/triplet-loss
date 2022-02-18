@@ -84,15 +84,22 @@ def get_input_examples(
     return train_set, dev_triplets, test_triplets
 
 
-def target2class(targets, log_norm=False):
+def target2class(targets, log_norm=False, minmax_norm=False):
     """
     Take targets (pd.Series) and transform into binary classification labels.
     Label is 1 if the target is within 1 std of the mean, 0 otherwise
     """
-    logger.info("Transforming data targets to class labels")
     if log_norm:
+        logger.info("Transforming log data targets to class labels")
         targets = np.log(targets + 1)
-    return targets.apply(lambda x: abs(x - targets.mean()) <= targets.std()).astype(
+    elif minmax_norm:
+        logger.info("Transforming minmax-norm data targets to class labels")
+        targets = (targets - targets.min()) / (targets.max() - targets.min())
+    else:
+        logger.info("Transforming data targets to class labels")
+    m = targets.iloc[np.where(targets > 0)].mean()
+    s = targets.iloc[np.where(targets > 0)].std()
+    return targets.apply(lambda x: abs(x - m) <= s).astype(
         "int16"
     )
 
@@ -138,7 +145,7 @@ if __name__ == "__main__":
     MODEL_NAME = "all-distilroberta-v1"
     BATCH_SIZE = 32
     NUM_EPOCHS = args.epochs
-    TARGET_VAR = args.target_var  # either `num_replies` or `log_num_replies`
+    TARGET_VAR = args.target_var  # either `num_replies` or `log` or `minmax`
     LOSS = "BatchHardTripletLoss"
     TRAIN_FILE = "train/seq2reply_regression_data.pickle"
     DEBUG = args.debug
@@ -160,9 +167,14 @@ if __name__ == "__main__":
     data = pd.read_pickle(TRAIN_FILE)
     data = data.loc[data.clean_text.notnull()]
     data = data.loc[~(data.clean_text == "")]
-    if DEBUG:
+    if DEBUG:db
         data = data.sample(1000)
-    data["label"] = target2class(data["num_replies"])
+    if TARGET_VAR == "minmax":
+        data["label"] = target2class(data["num_replies"], minmax_norm=True)
+    if TARGET_VAR == "log":
+        data["label"] = target2class(data["num_replies"], log_norm=True)
+    else:
+        data["label"] = target2class(data["num_replies"])
     logging.info(
         f"Loaded {data.shape[0]} rows from file. {data.loc[data.label==0].shape[0]} with label 0 (high engagement). {data.loc[data.label==1].shape[0]} with label 1 (low/avg engagement)."
     )
