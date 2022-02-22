@@ -133,6 +133,8 @@ def triplets_from_labeled_dataset(input_examples):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, required=True)
+    parser.add_argument("--batch", type=int, default=32)
+    parser.add_Argument("--lr", type=float, default=2e-5)
     parser.add_argument("--target_var", type=str, nargs="?", default="num_replies")
     parser.add_argument("--debug", dest="debug", action="store_true")
     parser.add_argument("--no-debug", dest="debug", action="store_false")
@@ -143,10 +145,12 @@ if __name__ == "__main__":
 
     # Params
     MODEL_NAME = "all-distilroberta-v1"
-    BATCH_SIZE = 32
+    BATCH_SIZE = args.batch
     NUM_EPOCHS = args.epochs
     TARGET_VAR = args.target_var  # either `num_replies` or `log` or `minmax`
     LOSS = "BatchHardTripletLoss"
+    LR = args.lr # learning rate for optimizer_params: Dict[str, object] = {'lr': 2e-05}
+    LEARNING_RATE = f"{LR:.1E}" # string lr for project_name
     TRAIN_FILE = "train/seq2reply_regression_data.pickle"
     DEBUG = args.debug
 
@@ -169,13 +173,13 @@ if __name__ == "__main__":
         data = data.sample(1000)
     if TARGET_VAR == "minmax":
         data["label"] = target2class(data["num_replies"], minmax_norm=True)
-        project_name = f"finetune-{LOSS}-minmax_ufo-{MODEL_NAME}-{pdate}"
+        project_name = f"finetune-{LOSS}-minmax_ufo-{MODEL_NAME}-lr-{LEARNING_RATE}-batch-{BATCH_SIZE}-epochs-{NUM_EPOCHS}-{pdate}"
     if TARGET_VAR == "log":
         data["label"] = target2class(data["num_replies"], log_norm=True)
-        project_name = f"finetune-{LOSS}-log_ufo-{MODEL_NAME}-{pdate}"
+        project_name = f"finetune-{LOSS}-log_ufo-{MODEL_NAME}-lr-{LEARNING_RATE}-batch-{BATCH_SIZE}-epochs-{NUM_EPOCHS}-{pdate}"
     else:
         data["label"] = target2class(data["num_replies"])
-        project_name = f"finetune-{LOSS}-ufo-{MODEL_NAME}-{pdate}"
+        project_name = f"finetune-{LOSS}-ufo-{MODEL_NAME}-lr-{LEARNING_RATE}-batch-{BATCH_SIZE}-epochs-{NUM_EPOCHS}-{pdate}"
     logging.info(
         f"Loaded {data.shape[0]} rows from file. {data.loc[data.label==0].shape[0]} with label 0 (high engagement). {data.loc[data.label==1].shape[0]} with label 1 (low/avg engagement)."
     )
@@ -227,6 +231,7 @@ if __name__ == "__main__":
         epochs=NUM_EPOCHS,
         evaluation_steps=1000,
         warmup_steps=warmup_steps,
+        optimizer_params={'lr': LR},
         output_path=output_path,
         checkpoint_path=output_path,
         checkpoint_save_steps=1000,
