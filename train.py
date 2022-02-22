@@ -99,9 +99,7 @@ def target2class(targets, log_norm=False, minmax_norm=False):
         logger.info("Transforming data targets to class labels")
     m = targets.iloc[np.where(targets > 0)].mean()
     s = targets.iloc[np.where(targets > 0)].std()
-    return targets.apply(lambda x: abs(x - m) <= s).astype(
-        "int16"
-    )
+    return targets.apply(lambda x: abs(x - m) <= s).astype("int16")
 
 
 def triplets_from_labeled_dataset(input_examples):
@@ -149,8 +147,10 @@ if __name__ == "__main__":
     NUM_EPOCHS = args.epochs
     TARGET_VAR = args.target_var  # either `num_replies` or `log` or `minmax`
     LOSS = "BatchHardTripletLoss"
-    LR = args.lr # learning rate for optimizer_params: Dict[str, object] = {'lr': 2e-05}
-    LEARNING_RATE = f"{LR:.1E}" # string lr for project_name
+    LR = (
+        args.lr
+    )  # learning rate for optimizer_params: Dict[str, object] = {'lr': 2e-05}
+    LEARNING_RATE = f"{LR:.1E}"  # string lr for project_name
     TRAIN_FILE = "train/seq2reply_regression_data.pickle"
     DEBUG = args.debug
 
@@ -169,7 +169,7 @@ if __name__ == "__main__":
 
     pdate = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
-    if DEBUG:db
+    if DEBUG:
         data = data.sample(1000)
     if TARGET_VAR == "minmax":
         data["label"] = target2class(data["num_replies"], minmax_norm=True)
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         epochs=NUM_EPOCHS,
         evaluation_steps=1000,
         warmup_steps=warmup_steps,
-        optimizer_params={'lr': LR},
+        optimizer_params={"lr": LR},
         output_path=output_path,
         checkpoint_path=output_path,
         checkpoint_save_steps=1000,
