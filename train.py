@@ -132,7 +132,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs", type=int, required=True)
     parser.add_argument("--batch", type=int, default=32)
-    parser.add_Argument("--lr", type=float, default=2e-5)
+    parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--target_var", type=str, nargs="?", default="num_replies")
     parser.add_argument("--debug", dest="debug", action="store_true")
     parser.add_argument("--no-debug", dest="debug", action="store_false")
@@ -177,7 +177,7 @@ if __name__ == "__main__":
     if TARGET_VAR == "log":
         data["label"] = target2class(data["num_replies"], log_norm=True)
         project_name = f"finetune-{LOSS}-log_ufo-{MODEL_NAME}-lr-{LEARNING_RATE}-batch-{BATCH_SIZE}-epochs-{NUM_EPOCHS}-{pdate}"
-    else:
+    if TARGET_VAR == "num_replies":
         data["label"] = target2class(data["num_replies"])
         project_name = f"finetune-{LOSS}-ufo-{MODEL_NAME}-lr-{LEARNING_RATE}-batch-{BATCH_SIZE}-epochs-{NUM_EPOCHS}-{pdate}"
     logging.info(
